@@ -1,3 +1,5 @@
-print("HELLO RUBIK")
+function a()
+  return 1, 2, 3
+end
 
-print("cai nay de format")
+print(a(), 100)
