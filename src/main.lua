@@ -29,7 +29,7 @@ function twoSum(nums, target)
   local hash = {}
 
   for i,v in ipairs(nums) do
-    if type(i) ~= "number" or type(v) ~= "number" then
+    if type(v) ~= "number" then
       return nil, "Error: False type"
     end
     local tmp = target - v
