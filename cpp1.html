@@ -1,0 +1,1003 @@
+<!doctype html><html lang=en-us><head><meta charset=UTF-8><meta name=viewport content="width=device-width,initial-scale=1"><title>C++ &#183; How I Start.
+</title><link rel=stylesheet href=/css/style.css><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Libre+Baskerville:400,400i,700"><link rel=stylesheet href=/css/custom.css><link rel=icon type=image/png sizes=32x32 href=/images/favicon-32x32.png><link rel=icon type=image/png sizes=16x16 href=/images/favicon-16x16.png><link rel=apple-touch-icon sizes=180x180 href=/images/apple-touch-icon.png><link href rel=alternate type=application/rss+xml title="How I Start."></head><body><nav class=nav><div class=nav-container><ul><li><a href=/><h2 class=nav-title>How I Start.</h2></a></li><li><a href=/posts/clojure>Clojure</a></li><li><a href=/posts/cpp>Cpp</a></li><li><a href=/posts/elixir>Elixir</a></li><li><a href=/posts/erlang>Erlang</a></li><li><a href=/posts/go>Go</a></li><li><a href=/posts/haskell>Haskell</a></li><li><a href=/posts/nim>Nim</a></li><li><a href=/posts/ruby>Ruby</a></li><li><a href=/about>About</a></li></ul></div></nav><main><div class=post><div class=post-info><span>Written by</span>
+Jeremy Ong<br><span>on&nbsp;</span><time datetime="2015-10-08 00:00:00 +0000 UTC">October 8, 2015</time></div><h1 class=post-title>C++</h1><div class=post-line></div><h2 id=introduction>Introduction</h2><p>C++ is one of the few languages that can incite as much debate as an editor holy
+war. However, it resolutely holds it&rsquo;s position as a state-of-the-art lingua
+franca, losing in ubiquity only to it&rsquo;s predecessor C. While it&rsquo;s easy to
+bemoan the warts of the language, it&rsquo;s important to understand that the
+modernization of C++ since the advent of C++11 (which continues through
+refinements introduced in C++14 and upcoming additions to C++17), has truly
+changed the game (ref.
+<a href=https://www.jetbrains.com/cpp-today-oreilly/books/Cplusplus_Today.pdf>The Beast is Back</a>).</p><p>Historically, C++ has not been kind to interested developers. The awkward mix of
+various Make build utilities, opaque compilation toolchains, obscure flags, and
+more provide both a immense configurability for nearly any platform and a
+absolute swamp of complexity.</p><p>My hope with this article is to provide you, the reader, with a decent foothold
+from which to begin. You might be writing shared libraries for mobile apps, high
+performance simulations, graphics engines for consoles, or even embedded code
+for a remote control car. Regardless, while I may not have time or space to delve into
+every nook and cranny now, you should feel comfortable using what you learn here as
+a starting point. It&rsquo;s worth noting that this is not meant to be a language
+tutorial or language introduction even. Think of it more as a whirlwind tour of
+a workflow to making several different parts that interact with each other in a
+non-trivial fashion. For learning C++, I have a few references listed at the
+end. However, here&rsquo;s a rough outline of what we <em>will</em> cover:</p><ul><li>The objective: What are we going to get by the end of this article?</li><li>The executable: How are C++ programs compiled and how do they run?</li><li>The build process: How do we set up our project for multiple platforms and
+configurations?</li><li>The implementation: How do we implement the project?</li><li>Some refinements: Touching up our implementation and discussing other improvements.</li><li>Testing and publishing: How do we make our library testable and package it?</li><li>Notes on writing code: How do I typically author C++ code?</li><li>The wrap-up: Where do I go from here?</li></ul><h2 id=the-objective>The objective</h2><p>Our end goal is a self-contained project containing two parts. A shared library,
+and a runtime we can use to test the library (hosted as the project
+<a href=https://github.com/PlexChat/RePlex>RePlex</a>). The function of the library is to
+act as a live code-reloader, which is extremely useful for live development (and
+potentially a surprise for people that didn&rsquo;t realize C++ could do this). This
+way, we&rsquo;ll cover how to make a reusable library across other executables, link
+that library to a sample executable, and cover a cool technique which needs to
+account for the host platform. Neat, let&rsquo;s get started!</p><h2 id=the-executable>The executable</h2><p>First, we need to understand the basic building blocks of a C++
+executable (also known as a binary executable or just binary for short). While
+this might seem overly pedantic, it actually isn&rsquo;t as complicated as you might
+think (if you skip the less interesting parts). Knowledge about these building
+blocks will give us a common pool of terminology and concepts we&rsquo;ll use
+throughout the rest of the article. If this is something you&rsquo;re already familiar
+with, feel free to skip ahead to the next section.</p><p>C++ code is usually organized into two types of files, header files and source
+files, usually with a <code>.h</code> or <code>.cpp</code> file suffix respectively. The smallest
+useful granularity of compiled code is an <em>object file</em>, which is the output when
+compiling a single source file. Thus, a set of <code>N</code> source files will emit <code>N</code>
+associated compiled object files. These object files can then be combined into a
+library or standalone-executable in a process known as <em>linking</em>. In addition to
+linking object files, the <em>linker</em> can also link other libraries (which were
+themselves created by linking object files together). Here&rsquo;s a
+flow chart showing some of the possibilities:</p><pre><code> Source Data     Compilation              Linking
+ -----------     -----------              -------
+
++-------------+              +----------+
+|Source file 1|  ----------&gt; |Obj file 1| -
++-------------+              +----------+  \
++-------------+              +----------+   \   +---------------------+
+|Source file 2|  ----------&gt; |Obj file 2| ----&gt; |Library or executable|
++-------------+              +----------+   /   +---------------------+
+                             +----------+  /
+                             |Static Lib| -
+                             +----------+
+</code></pre><p>Notice that I referred to the external library in the above flow chart as a
+<em>static</em> library. There are actually two types of libraries, <em>static</em> and
+<em>dynamic</em> (also known as <em>shared</em>). Static libraries are bundled into the
+executable at compile time as you&rsquo;ve just seen. Dynamics libraries are loaded on
+demand by the executable at runtime.</p><p>As you may have guessed, our reloader is only going to work on dynamic
+libraries. Reloading a static library would require a relink of the entire
+executable and doing this on the fly would be quite a challenge indeed (left as
+a sadistic exercise to the reader).</p><h1 id=the-build-process>The build process</h1><p>If you haven&rsquo;t guessed already, builds for C++ programs can get complicated
+fast. Decisions like link order, what to link, what the linker should produce
+have to be made by the programmer. The compilation of the object files is quite
+configurable as well. For example, we can specify how much the compiler should
+optimize or if we need debug symbols. Couple this with the fact that there are
+many compilers, each with their own feature sets and options (which may or may
+not be platform specific) and we have a real doozy on our hands. Fortunately,
+there are a lot more solutions for managing this today than there were years
+ago. The solution I&rsquo;m going to cover here leverages
+<a href='https://premake.github.io/'>premake5</a>. Another piece of good news is
+that once you have some of the boilerplate in place, it&rsquo;s easy to fork a new
+project off of it. There exist other build solutions
+which I&rsquo;ll list non-exhaustively at the end of the section, but without further
+ado, let&rsquo;s start scaffolding our project.</p><pre><code>RePlex
+|-- premake5.lua
+|-- lib
+|   |-- RePlex.cpp
+|   +-- pub
+|       +-- RePlex.h
++-- runtime
+    +-- Main.cpp
+</code></pre><p>There are countless ways one can organize files within a C++ project.
+Personally, I like having public headers separated other files within the same
+module and in an easily identifiable folder name (like &ldquo;pub&rdquo;). I also ensure
+that modules themselves (standalone libraries and executables) are separated.
+Occasionally, I introduce more folder nesting within a module to provide even
+more structure where it makes sense (e.g. grouping platform specific code, test
+harness code, etc). The contents of lib will be used to make our library, and
+the contents of runtime will make our executable. The file
+<code>RePlex/lib/pub/RePlex.h</code> will be the public interface of the library. Note that
+we&rsquo;ll add files as we need them throughout this article; this is just a starting
+point.</p><p>What you&rsquo;re actually curious about though, is that <code>lua</code> file. The Premake build
+configuration system actually consumes Lua files in order to generate project
+files or makefiles appropriate to your target platform. For example, on Windows,
+you could invoke <code>premake5 vs2015</code> in the <code>RePlex</code> directory to generate Visual
+Studio 2015 solution files to then edit and compile the code. Alternatively, on
+OSX you could generate Xcode project files, or GNU makefiles on Linux. Many more
+backends to premake
+<a href=https://github.com/premake/premake-core/wiki/Using-Premake>exist</a> and you can
+even
+<a href=https://github.com/premake/premake-core/wiki/Adding-a-New-Action>make your own</a>.
+The Lua files Premake consumes are declarative in nature, but you can use the
+entire Lua runtime at your disposal to do more complex build tasks if you wish
+(like preprocessing, or what have you). Here are the contents of <code>premake5.lua</code>
+file.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-lua data-lang=lua><span class=line><span class=cl><span class=n>workspace</span> <span class=s2>&#34;RePlex&#34;</span>
+</span></span><span class=line><span class=cl>  <span class=n>configurations</span> <span class=p>{</span><span class=s2>&#34;Debug&#34;</span><span class=p>,</span> <span class=s2>&#34;Release&#34;</span><span class=p>}</span>
+</span></span><span class=line><span class=cl>  <span class=c1>-- Use C++ as the target language for all builds</span>
+</span></span><span class=line><span class=cl>  <span class=n>language</span> <span class=s2>&#34;C++&#34;</span>
+</span></span><span class=line><span class=cl>  <span class=n>targetdir</span> <span class=s2>&#34;bin/%{cfg.buildcfg}&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=c1>-- Get that C++14 goodness</span>
+</span></span><span class=line><span class=cl>  <span class=n>flags</span> <span class=p>{</span> <span class=s2>&#34;C++14&#34;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=n>filter</span> <span class=s2>&#34;configurations:Debug&#34;</span>
+</span></span><span class=line><span class=cl>    <span class=c1>-- Add the preprocessor definition DEBUG to debug builds</span>
+</span></span><span class=line><span class=cl>    <span class=n>defines</span> <span class=p>{</span> <span class=s2>&#34;DEBUG&#34;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=c1>-- Ensure symbols are bundled with debug builds</span>
+</span></span><span class=line><span class=cl>    <span class=n>flags</span> <span class=p>{</span> <span class=s2>&#34;Symbols&#34;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=n>filter</span> <span class=s2>&#34;configurations:Release&#34;</span>
+</span></span><span class=line><span class=cl>    <span class=c1>-- Add the preprocessor definition RELEASE to debug builds</span>
+</span></span><span class=line><span class=cl>    <span class=n>defines</span> <span class=p>{</span> <span class=s2>&#34;RELEASE&#34;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=c1>-- Turn on compiler optimizations for release builds</span>
+</span></span><span class=line><span class=cl>    <span class=n>optimize</span> <span class=s2>&#34;On&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=c1>-- RePlex Library</span>
+</span></span><span class=line><span class=cl>  <span class=n>project</span> <span class=s2>&#34;RePlex&#34;</span>
+</span></span><span class=line><span class=cl>    <span class=n>kind</span> <span class=s2>&#34;SharedLib&#34;</span>
+</span></span><span class=line><span class=cl>    <span class=c1>-- recursively glob .h and .cpp files in the lib directory</span>
+</span></span><span class=line><span class=cl>    <span class=n>files</span> <span class=p>{</span> <span class=s2>&#34;lib/**.h&#34;</span><span class=p>,</span> <span class=s2>&#34;lib/**.cpp&#34;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=c1>-- RePlex Runtime</span>
+</span></span><span class=line><span class=cl>  <span class=n>project</span> <span class=s2>&#34;RePlexRuntime&#34;</span>
+</span></span><span class=line><span class=cl>    <span class=n>kind</span> <span class=s2>&#34;ConsoleApp&#34;</span>
+</span></span><span class=line><span class=cl>    <span class=c1>-- recursively glob .h and .cpp files in the runtime directory</span>
+</span></span><span class=line><span class=cl>    <span class=n>files</span> <span class=p>{</span> <span class=s2>&#34;runtime/**.h&#34;</span><span class=p>,</span> <span class=s2>&#34;runtime/**.cpp&#34;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=c1>-- link the RePlexLib library at runtime</span>
+</span></span><span class=line><span class=cl>    <span class=n>links</span> <span class=p>{</span> <span class=s2>&#34;RePlex&#34;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=n>includedirs</span> <span class=p>{</span> <span class=s2>&#34;lib/pub&#34;</span> <span class=p>}</span>
+</span></span></code></pre></div><p>I don&rsquo;t want to belabor the mechanics of this in too much detail, but hopefully
+the structure makes sense. At the top level, we have a workspace called &ldquo;RePlex&rdquo;
+which is purely semantic; it has no meaning as far as C++ is concerned but acts
+as a container for all our build targets (i.e. libraries and executables). This
+is useful for signalling what should be grouped to IDEs like Visual Studio,
+Xcode. Premake files are structured with lexical scoping, where keywords like
+<code>workspace</code> and <code>project</code> increase the depth of the scope tree. Thus all the
+properties defined underneath line 1 apply to all projects in that workspace.
+Here, we define two possible build configurations, the workspace language,
+target directory, and configuration specific compiler flags and preprocessor
+definitions.</p><p>Then, we define two projects for our shared library and console application
+respectively. Note that RePlexLib is a dependency of RePlexRuntime;
+RePlexRuntime has access to all headers in <code>lib/pub</code> and also links RePlexLib.
+Note that we could have overridden or specified any of global workspace
+properties on a per project basis.</p><p>Let&rsquo;s make some stub files too:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=c1>// lib/pub/RePlex.h
+</span></span></span><span class=line><span class=cl><span class=c1></span>
+</span></span><span class=line><span class=cl><span class=cp>#pragma once
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=k>class</span> <span class=nc>Foo</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl><span class=k>public</span><span class=o>:</span>
+</span></span><span class=line><span class=cl>    <span class=kt>int</span> <span class=n>GetTheAnswer</span><span class=p>()</span> <span class=k>const</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=k>private</span><span class=o>:</span>
+</span></span><span class=line><span class=cl>    <span class=kt>int</span> <span class=n>m_answer</span> <span class=o>=</span> <span class=mi>42</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=p>};</span>
+</span></span></code></pre></div><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=c1>// lib/RePlex.cpp
+</span></span></span><span class=line><span class=cl><span class=c1></span>
+</span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&#34;pub/RePlex.h&#34;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=kt>int</span> <span class=n>Foo</span><span class=o>::</span><span class=n>GetTheAnswer</span><span class=p>()</span> <span class=k>const</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>return</span> <span class=n>m_answer</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=c1>// runtime/Main.cpp
+</span></span></span><span class=line><span class=cl><span class=c1></span>
+</span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;RePlex.h&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;iostream&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=kt>int</span> <span class=nf>main</span><span class=p>()</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=n>Foo</span> <span class=n>foo</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>    <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;The answer is &#34;</span> <span class=o>&lt;&lt;</span> <span class=n>foo</span><span class=p>.</span><span class=n>GetTheAnswer</span><span class=p>()</span> <span class=o>&lt;&lt;</span> <span class=n>std</span><span class=o>::</span><span class=n>endl</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>    <span class=k>return</span> <span class=mi>0</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><p>As a side note, my preference for editing code varies based on the platform I am
+using. When developing on Windows, I prefer Visual Studio (which has improved
+dramatically since 2010, the version I first learned on). When developing on
+OSX, I use Xcode due to its integration with the various simulators for iOS
+devices. On Linux, I use Emacs with Vim emulation, or Eclipse when I need a
+visual debugger (I&rsquo;ve had issues using Eclipse as an editor due to stability,
+although this may have been addressed in more recent builds since my last
+experience with it in 2014). When writing this article, I opted to use a simple
+text editor and the make system, as this is the most ubiquitous build system and
+the reader should be able to reproduce all the work with the IDE of their
+choosing relatively easily.</p><p>At this point, you should install Premake if you haven&rsquo;t already for the
+operating system of your choice. With this, you should be able to invoke
+<code>premake5 gmake</code> (substitute <code>gmake</code> with whatever action you like) in the root
+directory of the app should create the corresponding Makefiles or project files
+depending on what action you choose. Subsequently, building the workspace should
+emit <code>bin/Debug/RePlexRuntime</code> and <code>bin/Debug/libRePlex.dylib</code>. Running
+<code>bin/Debug/RePlexRuntime</code> should give us the output we expect.</p><pre><code>The answer is 42
+</code></pre><p>Woohoo, progress!</p><h1 id=the-implementation>The implementation</h1><p>As mentioned before, we want to author a library that will handle
+&ldquo;hot-reloading&rdquo; a different library on the fly. Let&rsquo;s first imagine what the
+interface to this library might look like. Obviously, the calling site needs to
+supply the name of the library they want to link. In addition, they need to
+specify the <em>symbols</em> in the library they wish to use. A symbol is, roughly
+speaking, the name given by the compiler to a variable name or function in your
+program. &ldquo;Why can&rsquo;t they just use the name I gave it?&rdquo; you might ask. The reason
+is because of features like function overloading, namespacing, templating, and a
+number of other features that make the given visible name insufficient for
+unique identification purposes. The symbol is generally used by the linker at
+compile time to determine where in memory the data or function exists. For our
+purposes, we need to make this association at runtime, but fortunately, an API
+for doing this exists in all major operating systems. We&rsquo;re going to focus on
+UNIX-based operating systems here. The functions we need are:</p><ul><li><code>dlopen</code>: Given a file name, reads the library from disk into memory</li><li><code>dlsym</code>: Given a symbol, returns the address of that symbol</li><li><code>dlerror</code>: Returns an error message describing the last thing that went wrong</li><li><code>dlclose</code>: Releases a reference to the specified library. If the reference
+count drops to zero, the library is removed from the address space.</li></ul><p>Let&rsquo;s do a quick and dirty demo to test the mechanics of these functions. The
+structure of the program will look like the following:</p><pre><code>+------+
+|RePlex| Library for performing loading and unloading
++------+
+ |       \  Is a dependency of
+ |        \
+ |         *---*
+ |              \     +-------------+
+ |               *--&gt; |RePlexRuntime|
+ |                    +-------------+
+ | Loads               /
+ |                    / Uses symbols in RePlexTest
+  \                  /
+   \     +----------+
+    *--&gt; |RePlexTest| Library that gets reloaded
+         +----------+
+</code></pre><p>RePlexRuntime is the executable that will be running in our test. RePlexTest
+will be the library that we eventually want to hotload. Replex will be our
+library for encapsulating the various functions to interact with the dynamic
+library. To accommodate this structure, let&rsquo;s add the test library to our
+Premake file.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-lua data-lang=lua><span class=line><span class=cl><span class=n>project</span> <span class=s2>&#34;RePlexTest&#34;</span>
+</span></span><span class=line><span class=cl>  <span class=n>kind</span> <span class=s2>&#34;SharedLib&#34;</span>
+</span></span><span class=line><span class=cl>  <span class=n>files</span> <span class=p>{</span> <span class=s2>&#34;test/**.h&#34;</span><span class=p>,</span> <span class=s2>&#34;test/**.cpp&#34;</span><span class=p>,</span> <span class=s2>&#34;test/pub/*.h&#34;</span> <span class=p>}</span>
+</span></span></code></pre></div><p>Easy enough. We&rsquo;ll also add a header and source file to our test library.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=c1>// test/pub/Test.h
+</span></span></span><span class=line><span class=cl><span class=c1></span>
+</span></span><span class=line><span class=cl><span class=cp>#pragma once
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=c1>// This line prevents C++ name mangling which would prevent dlsym from retrieving
+</span></span></span><span class=line><span class=cl><span class=c1>// the correct symbols.
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=k>extern</span> <span class=s>&#34;C&#34;</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=kt>void</span> <span class=nf>foo</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=c1>// The extern keyword here exports a global variable that will be defined in Test.cpp
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=k>extern</span> <span class=kt>int</span> <span class=n>bar</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=c1>// test/Test.cpp
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=cp>#include</span> <span class=cpf>&#34;pub/Test.h&#34;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;cstdio&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=kt>void</span> <span class=nf>foo</span><span class=p>()</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=n>printf</span><span class=p>(</span><span class=s>&#34;Hi</span><span class=se>\n</span><span class=s>&#34;</span><span class=p>);</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kt>int</span> <span class=n>bar</span> <span class=o>=</span> <span class=mi>4</span><span class=p>;</span>
+</span></span></code></pre></div><p>Our RePlex library for now will just have a very thin wrapper to the various
+<code>dl*</code> functions.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=c1>// lib/pub/RePlex.h
+</span></span></span><span class=line><span class=cl><span class=c1></span>
+</span></span><span class=line><span class=cl><span class=cp>#pragma once
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;dlfcn.h&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=kt>void</span><span class=o>*</span> <span class=nf>Load</span><span class=p>(</span><span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>filepath</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kt>void</span><span class=o>*</span> <span class=nf>LoadSymbol</span><span class=p>(</span><span class=kt>void</span><span class=o>*</span> <span class=n>library</span><span class=p>,</span> <span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>symbol</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kt>void</span> <span class=nf>Reload</span><span class=p>(</span><span class=kt>void</span><span class=o>*</span> <span class=o>&amp;</span><span class=n>library</span><span class=p>,</span> <span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>filepath</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kt>void</span> <span class=nf>PrintError</span><span class=p>();</span>
+</span></span></code></pre></div><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=c1>// lib/RePlex.cpp
+</span></span></span><span class=line><span class=cl><span class=c1></span>
+</span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&#34;pub/RePlex.h&#34;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;cstdio&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=kt>void</span><span class=o>*</span> <span class=nf>Load</span><span class=p>(</span><span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>filepath</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=k>return</span> <span class=n>dlopen</span><span class=p>(</span><span class=n>filepath</span><span class=p>,</span> <span class=n>RTLD_NOW</span><span class=p>);</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kt>void</span><span class=o>*</span> <span class=nf>LoadSymbol</span><span class=p>(</span><span class=kt>void</span><span class=o>*</span> <span class=n>library</span><span class=p>,</span> <span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>symbol</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=k>return</span> <span class=n>dlsym</span><span class=p>(</span><span class=n>library</span><span class=p>,</span> <span class=n>symbol</span><span class=p>);</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kt>void</span> <span class=nf>Reload</span><span class=p>(</span><span class=kt>void</span><span class=o>*</span> <span class=o>&amp;</span><span class=n>library</span><span class=p>,</span> <span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>filepath</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=n>dlclose</span><span class=p>(</span><span class=n>library</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=n>library</span> <span class=o>=</span> <span class=n>dlopen</span><span class=p>(</span><span class=n>filepath</span><span class=p>,</span> <span class=n>RTLD_NOW</span><span class=p>);</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kt>void</span> <span class=nf>PrintError</span><span class=p>()</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=n>printf</span><span class=p>(</span><span class=s>&#34;Error: %s</span><span class=se>\n</span><span class=s>&#34;</span><span class=p>,</span> <span class=n>dlerror</span><span class=p>());</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><p>Finally, we&rsquo;ll modify our runtime to use these new functions and test run a dll hot-load.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;RePlex.h&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;iostream&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=cp>#ifdef DEBUG
+</span></span></span><span class=line><span class=cl><span class=cp></span><span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>g_libPath</span> <span class=o>=</span> <span class=s>&#34;bin/Debug/libRePlexTest.dylib&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=cp>#else
+</span></span></span><span class=line><span class=cl><span class=cp></span><span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>g_libPath</span> <span class=o>=</span> <span class=s>&#34;bin/Release/libRePlexTest.dylib&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=cp>#endif
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=kt>void</span> <span class=p>(</span><span class=o>*</span><span class=n>foo</span><span class=p>)();</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kt>int</span> <span class=nf>main</span><span class=p>()</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=kt>void</span><span class=o>*</span> <span class=n>handle</span> <span class=o>=</span> <span class=n>Load</span><span class=p>(</span><span class=n>g_libPath</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=k>if</span> <span class=p>(</span><span class=n>handle</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=c1>// Set the memory address of the function foo from the library to our foo.
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=n>foo</span> <span class=o>=</span> <span class=k>reinterpret_cast</span><span class=o>&lt;</span><span class=kt>void</span> <span class=p>(</span><span class=o>*</span><span class=p>)()</span><span class=o>&gt;</span><span class=p>(</span><span class=n>LoadSymbol</span><span class=p>(</span><span class=n>handle</span><span class=p>,</span> <span class=s>&#34;foo&#34;</span><span class=p>));</span>
+</span></span><span class=line><span class=cl>    <span class=c1>// Call foo
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=n>foo</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=c1>// Read the data from the global variable bar in the test library
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=kt>int</span> <span class=n>bar</span> <span class=o>=</span> <span class=o>*</span><span class=k>reinterpret_cast</span><span class=o>&lt;</span><span class=kt>int</span><span class=o>*&gt;</span><span class=p>(</span><span class=n>LoadSymbol</span><span class=p>(</span><span class=n>handle</span><span class=p>,</span> <span class=s>&#34;bar&#34;</span><span class=p>));</span>
+</span></span><span class=line><span class=cl>    <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;bar == &#34;</span> <span class=o>&lt;&lt;</span> <span class=n>bar</span> <span class=o>&lt;&lt;</span> <span class=n>std</span><span class=o>::</span><span class=n>endl</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=c1>// Wait for input to give us a chance to recompile the library
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;Make some changes, recompile, and press enter.&#34;</span> <span class=o>&lt;&lt;</span> <span class=n>std</span><span class=o>::</span><span class=n>flush</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>    <span class=k>while</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>cin</span><span class=p>.</span><span class=n>get</span><span class=p>()</span> <span class=o>!=</span> <span class=sc>&#39;\n&#39;</span><span class=p>)</span> <span class=p>{}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=c1>// Reload the library!
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=n>Reload</span><span class=p>(</span><span class=n>handle</span><span class=p>,</span> <span class=n>g_libPath</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=c1>// We need to refetch the symbol because it&#39;s location in memory may have changed
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=n>foo</span> <span class=o>=</span> <span class=k>reinterpret_cast</span><span class=o>&lt;</span><span class=kt>void</span> <span class=p>(</span><span class=o>*</span><span class=p>)()</span><span class=o>&gt;</span><span class=p>(</span><span class=n>LoadSymbol</span><span class=p>(</span><span class=n>handle</span><span class=p>,</span> <span class=s>&#34;foo&#34;</span><span class=p>));</span>
+</span></span><span class=line><span class=cl>    <span class=n>foo</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=c1>// Do the same for bar
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=n>bar</span> <span class=o>=</span> <span class=o>*</span><span class=k>reinterpret_cast</span><span class=o>&lt;</span><span class=kt>int</span><span class=o>*&gt;</span><span class=p>(</span><span class=n>LoadSymbol</span><span class=p>(</span><span class=n>handle</span><span class=p>,</span> <span class=s>&#34;bar&#34;</span><span class=p>));</span>
+</span></span><span class=line><span class=cl>    <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;bar == &#34;</span> <span class=o>&lt;&lt;</span> <span class=n>bar</span> <span class=o>&lt;&lt;</span> <span class=n>std</span><span class=o>::</span><span class=n>endl</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>  <span class=k>else</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=n>PrintError</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>  <span class=k>return</span> <span class=mi>0</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><p>Running this on my machine generates output like the following:</p><pre><code>Hi
+bar == 4
+Make some changes, recompile, and press enter.
+Can i haz hot-reloading
+bar == 314159
+</code></pre><p>Note that after the second line of that output, I changed the contents of
+Test.cpp and reinvoked <code>make</code> to recompile the library. So far so good! Now that
+we have some grasp of the strange incantations of this program, we can start to
+think about a better way to structure it. One thing worth noting is our use of
+<code>extern "C"</code>. This has a special meaning in C++ and informs the compiler to not
+use name-mangling on the symbols defined in its scope (in our case, the <code>foo</code>
+function and <code>bar</code> global). This makes those symbols callable from C code, and
+also allows functions like <code>dlsym</code> to locate them using a simple C-string
+lookup. Symbol lookup for C++ functions and variables is a bit more complex due
+to the various decorators that can be attached to functions and variables. More
+importantly, the way in which the compiler assigns names to these decorated
+functions and variables is not standardized and can vary from compiler to
+compiler.</p><p>The existing program has a number of problems. First, we need to manually load
+the symbol ourselves. This will certainly become tedious if a module exports a
+lot of functions and variables. In addition, the test library where the actual
+code resides doesn&rsquo;t actually specify it&rsquo;s own exports which is a little odd.
+What we really want is a way to package all exports in a pretty package. This
+means that RePlex will need to expose two public interfaces, one for publishing
+a hot-loadable library, and one for loading and reloading those hot-loadable
+libraries. To do this, we&rsquo;ll make a class called <code>RePlexModule</code> in Replex.h. The
+intended usage of this module is to be inherited by the test library and
+specialized so it can load all the correct symbols and expose a cleaner
+interface to the end user of the library. Let&rsquo;s start with just the public
+interface:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=c1>// lib/pub/RePlex.h
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=cp>#pragma once
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;array&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;unordered_map&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;string&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;dlfcn.h&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=k>template</span> <span class=o>&lt;</span><span class=k>typename</span> <span class=n>E</span><span class=p>,</span> <span class=n>size_t</span> <span class=n>NumSymbols</span><span class=o>&gt;</span>
+</span></span><span class=line><span class=cl><span class=k>class</span> <span class=nc>RePlexModule</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl><span class=k>public</span><span class=o>:</span>
+</span></span><span class=line><span class=cl>  <span class=k>static</span> <span class=kt>void</span> <span class=n>LoadLibrary</span><span class=p>()</span> <span class=p>{</span> <span class=n>GetInstance</span><span class=p>().</span><span class=n>Load</span><span class=p>();</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>  <span class=k>static</span> <span class=kt>void</span> <span class=nf>ReloadLibrary</span><span class=p>()</span> <span class=p>{</span> <span class=n>GetInstance</span><span class=p>().</span><span class=n>Reload</span><span class=p>();</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>protected</span><span class=o>:</span>
+</span></span><span class=line><span class=cl>  <span class=k>static</span> <span class=n>E</span><span class=o>&amp;</span> <span class=n>GetInstance</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>static</span> <span class=n>E</span> <span class=n>instance</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>    <span class=k>return</span> <span class=n>instance</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=c1>//...
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=c1>//... continued later
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=p>};</span>
+</span></span></code></pre></div><p>The first thing you&rsquo;ll notice are the template parameters attached to our class.
+That&rsquo;s right, this is a template class! If you haven&rsquo;t seen them before (or saw
+them and didn&rsquo;t understand them), the following example should give you the
+basic gist.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=k>template</span> <span class=o>&lt;</span><span class=k>typename</span> <span class=n>T</span><span class=o>&gt;</span>
+</span></span><span class=line><span class=cl><span class=k>class</span> <span class=nc>Foo</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl><span class=k>public</span><span class=o>:</span>
+</span></span><span class=line><span class=cl>    <span class=n>T</span> <span class=n>GetT</span><span class=p>()</span> <span class=p>{</span> <span class=k>return</span> <span class=n>t</span><span class=p>;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=n>T</span> <span class=n>t</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><p><code>Foo</code> is a class template (you might have heard the term &ldquo;template class&rdquo;
+before, but honestly, I don&rsquo;t think that makes any sense; just know that they&rsquo;re
+interchangeable and &ldquo;template class&rdquo; is a bit more common) and has one template
+parameter. We can&rsquo;t make an object of type <code>Foo</code> since we don&rsquo;t know what <code>T</code>
+is. However, later we might <em>instantiate</em> the class template like so:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=n>Foo</span><span class=o>&lt;</span><span class=kt>double</span><span class=o>&gt;</span> <span class=n>foo</span><span class=p>;</span>
+</span></span></code></pre></div><p>This makes an instance of the class template <code>Foo</code> with <code>T = double</code>. The
+compiler essentially writes out the code like so:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=k>class</span> <span class=nc>Foo</span><span class=o>&lt;</span><span class=kt>double</span><span class=o>&gt;</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl><span class=k>public</span><span class=o>:</span>
+</span></span><span class=line><span class=cl>    <span class=kt>double</span> <span class=n>GetT</span><span class=p>()</span> <span class=p>{</span> <span class=k>return</span> <span class=n>t</span><span class=p>;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=kt>double</span> <span class=n>t</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><p>The compiler simply did a substitution of the unqualified type <code>T</code> for the type
+<code>double</code>. If you conceptually think of templates in this way and do mental
+substitutions, you&rsquo;ll have a good mental model for what&rsquo;s going on. In addition
+to types, template arguments can be countable numbers (like <code>NumSymbols</code>).</p><p>Going back to <code>RePlexModule</code>, the only two public functions
+RePlexModule will expose to our runtime is <code>LoadLibrary</code> and <code>ReloadLibrary</code>
+which both depend on <code>GetInstance</code>. Notice that these are all static functions
+that operate on a singleton. Singletons are often considered an antipattern,
+however, in this case we actually want to enforce that only one copy of this
+class exists in memory. It really doesn&rsquo;t make sense to have multiple instances
+(if we wanted, say, two separate versions of the library to coexist, we would
+associate them with entirely different types, not two instances of the same
+type). Why doesn&rsquo;t <code>GetInstance</code> return a reference to <code>RePlexModule</code>? Because
+remember, we want our test library to inherit from this class to specialize
+behavior. Thus, we expect it to supply the value of the template parameter <code>E</code>
+as itself. If this is confusing now, don&rsquo;t worry. It will get clarified better
+later on. We also need to remember to remove the <code>RePlex</code> library as a Premake
+project since it now is a header only file that doesn&rsquo;t require standalone
+compilation (this includes removing it as a link dependency of the runtime).</p><p>Now, let&rsquo;s look at the functions exposed to the test library that will inherit
+<code>RePlexModule</code>:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl>  <span class=c1>// Start of RePlexModule declaration above
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=c1>// ...
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=k>protected</span><span class=o>:</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=c1>// Should return the path to the library on disk
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=k>virtual</span> <span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>GetPath</span><span class=p>()</span> <span class=k>const</span> <span class=o>=</span> <span class=mi>0</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=c1>// Should return a reference to an array of C-strings of size NumSymbols
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=c1>// Used when loading or reloading the library to lookup the address of
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=c1>// all exported symbols
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=k>virtual</span> <span class=n>std</span><span class=o>::</span><span class=n>array</span><span class=o>&lt;</span><span class=k>const</span> <span class=kt>char</span><span class=o>*</span><span class=p>,</span> <span class=n>NumSymbols</span><span class=o>&gt;&amp;</span> <span class=n>GetSymbolNames</span><span class=p>()</span> <span class=k>const</span> <span class=o>=</span> <span class=mi>0</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>template</span> <span class=o>&lt;</span><span class=k>typename</span> <span class=n>Ret</span><span class=p>,</span> <span class=k>typename</span><span class=p>...</span> <span class=n>Args</span><span class=o>&gt;</span>
+</span></span><span class=line><span class=cl>  <span class=n>Ret</span> <span class=n>Execute</span><span class=p>(</span><span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>name</span><span class=p>,</span> <span class=n>Args</span><span class=p>...</span> <span class=n>args</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=c1>// Lookup the function address
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=k>auto</span> <span class=n>symbol</span> <span class=o>=</span> <span class=n>m_symbols</span><span class=p>.</span><span class=n>find</span><span class=p>(</span><span class=n>name</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=k>if</span> <span class=p>(</span><span class=n>symbol</span> <span class=o>!=</span> <span class=n>m_symbols</span><span class=p>.</span><span class=n>end</span><span class=p>())</span>
+</span></span><span class=line><span class=cl>    <span class=p>{</span>
+</span></span><span class=line><span class=cl>      <span class=c1>// Cast the address to the appropriate function type and call it,
+</span></span></span><span class=line><span class=cl><span class=c1></span>      <span class=c1>// forwarding all arguments
+</span></span></span><span class=line><span class=cl><span class=c1></span>      <span class=k>return</span> <span class=k>reinterpret_cast</span><span class=o>&lt;</span><span class=n>Ret</span><span class=p>(</span><span class=o>*</span><span class=p>)(</span><span class=n>Args</span><span class=p>...)</span><span class=o>&gt;</span><span class=p>(</span><span class=n>symbol</span><span class=o>-&gt;</span><span class=n>second</span><span class=p>)(</span><span class=n>args</span><span class=p>...);</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=k>else</span>
+</span></span><span class=line><span class=cl>    <span class=p>{</span>
+</span></span><span class=line><span class=cl>      <span class=k>throw</span> <span class=n>std</span><span class=o>::</span><span class=n>runtime_error</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=p>(</span><span class=s>&#34;Function not found: &#34;</span><span class=p>)</span> <span class=o>+</span> <span class=n>name</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>template</span> <span class=o>&lt;</span><span class=k>typename</span> <span class=n>T</span><span class=o>&gt;</span>
+</span></span><span class=line><span class=cl>  <span class=n>T</span><span class=o>*</span> <span class=n>GetVar</span><span class=p>(</span><span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>name</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>auto</span> <span class=n>symbol</span> <span class=o>=</span> <span class=n>m_symbols</span><span class=p>.</span><span class=n>find</span><span class=p>(</span><span class=n>name</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=k>if</span> <span class=p>(</span><span class=n>symbol</span> <span class=o>!=</span> <span class=n>m_symbols</span><span class=p>.</span><span class=n>end</span><span class=p>())</span>
+</span></span><span class=line><span class=cl>    <span class=p>{</span>
+</span></span><span class=line><span class=cl>      <span class=k>return</span> <span class=k>static_cast</span><span class=o>&lt;</span><span class=n>T</span><span class=o>*&gt;</span><span class=p>(</span><span class=n>symbol</span><span class=o>-&gt;</span><span class=n>second</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=k>else</span>
+</span></span><span class=line><span class=cl>    <span class=p>{</span>
+</span></span><span class=line><span class=cl>      <span class=c1>// We didn&#39;t find the variable. Return an empty pointer
+</span></span></span><span class=line><span class=cl><span class=c1></span>      <span class=k>return</span> <span class=k>nullptr</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>private</span><span class=o>:</span>
+</span></span><span class=line><span class=cl>  <span class=kt>void</span> <span class=n>Load</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=n>m_libHandle</span> <span class=o>=</span> <span class=n>dlopen</span><span class=p>(</span><span class=n>GetPath</span><span class=p>(),</span> <span class=n>RTLD_NOW</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>LoadSymbols</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=kt>void</span> <span class=nf>Reload</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=n>dlclose</span><span class=p>(</span><span class=n>m_libHandle</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>m_symbols</span><span class=p>.</span><span class=n>clear</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>    <span class=n>Load</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=kt>void</span> <span class=nf>LoadSymbols</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>for</span> <span class=p>(</span><span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=nl>symbol</span> <span class=p>:</span> <span class=n>GetSymbolNames</span><span class=p>())</span>
+</span></span><span class=line><span class=cl>    <span class=p>{</span>
+</span></span><span class=line><span class=cl>      <span class=n>m_symbols</span><span class=p>[</span><span class=n>symbol</span><span class=p>]</span> <span class=o>=</span> <span class=n>dlsym</span><span class=p>(</span><span class=n>m_libHandle</span><span class=p>,</span> <span class=n>symbol</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=kt>void</span><span class=o>*</span> <span class=n>m_libHandle</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>  <span class=n>std</span><span class=o>::</span><span class=n>unordered_map</span><span class=o>&lt;</span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=p>,</span> <span class=kt>void</span><span class=o>*&gt;</span> <span class=n>m_symbols</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=p>};</span>
+</span></span></code></pre></div><p>The data members of the class at the very bottom are a pointer to the library
+handle after it gets loaded and an associative container mapping symbol names to
+their pointers in memory. Working upwards, we have functions that operate very
+similarly to our initial toy implementation. <code>LoadSymbols</code> iterates over all
+elements returned from <code>GetSymbols</code> and populates <code>m_symbols</code>. <code>Load</code> works as
+before but also calls <code>LoadSymbols</code>. <code>Reload</code> also works as before but clears
+the contents of <code>m_symbols</code> first to ensure there aren&rsquo;t any invalid symbols
+lingering around. <code>Load</code> and <code>Reload</code> are called by the static functions
+<code>LoadLibrary</code> and <code>ReloadLibrary</code> defined above respectively.</p><p>Towards the top, we have pure virtual functions we expect implementers of this
+class to override: <code>GetPath</code> and <code>GetSymbols</code>. We&rsquo;ll override these soon, but
+first, let&rsquo;s look at the (possibly terrifying) functions <code>Execute</code> and <code>GetVar</code>.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=k>template</span> <span class=o>&lt;</span><span class=k>typename</span> <span class=n>Ret</span><span class=p>,</span> <span class=k>typename</span><span class=p>...</span> <span class=n>Args</span><span class=o>&gt;</span>
+</span></span><span class=line><span class=cl><span class=n>Ret</span> <span class=n>Execute</span><span class=p>(</span><span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>name</span><span class=p>,</span> <span class=n>Args</span><span class=p>...</span> <span class=n>args</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=k>auto</span> <span class=n>symbol</span> <span class=o>=</span> <span class=n>m_symbols</span><span class=p>.</span><span class=n>find</span><span class=p>(</span><span class=n>name</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=k>if</span> <span class=p>(</span><span class=n>symbol</span> <span class=o>!=</span> <span class=n>m_symbols</span><span class=p>.</span><span class=n>end</span><span class=p>())</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>return</span> <span class=k>reinterpret_cast</span><span class=o>&lt;</span><span class=n>Ret</span><span class=p>(</span><span class=o>*</span><span class=p>)(</span><span class=n>Args</span><span class=p>...)</span><span class=o>&gt;</span><span class=p>(</span><span class=n>symbol</span><span class=o>-&gt;</span><span class=n>second</span><span class=p>)(</span><span class=n>args</span><span class=p>...);</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>  <span class=k>else</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>throw</span> <span class=n>std</span><span class=o>::</span><span class=n>runtime_error</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=p>(</span><span class=s>&#34;Function not found: &#34;</span><span class=p>)</span> <span class=o>+</span> <span class=n>name</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><p><code>Execute</code> takes a function name and <code>Args... args</code> as arguments. Its return type
+is <code>Ret</code>. The first argument is unlikely to be contentious but the second is
+likely unfamiliar to those who haven&rsquo;t touched C++ since the advent of the C++11
+standard. The <code>...</code> syntax denotes a parameter pack and is useful for specifying
+a variadic number of arguments with varying types. For example, if I called this
+function like:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=n>Execute</span><span class=o>&lt;</span><span class=kt>char</span><span class=p>,</span> <span class=kt>int</span><span class=p>,</span> <span class=kt>float</span><span class=o>&gt;</span><span class=p>(</span><span class=s>&#34;stuff&#34;</span><span class=p>,</span> <span class=mi>7</span><span class=p>,</span> <span class=mf>2.4f</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1>// Compiler turns this into something like:
+</span></span></span><span class=line><span class=cl><span class=c1>// char Execute(const char* name, int arg1, float arg2)
+</span></span></span><span class=line><span class=cl><span class=c1>// {
+</span></span></span><span class=line><span class=cl><span class=c1>//   auto symbol = m_symbols.find(name);
+</span></span></span><span class=line><span class=cl><span class=c1>//   if (symbol != m_symbols.end())
+</span></span></span><span class=line><span class=cl><span class=c1>//   {
+</span></span></span><span class=line><span class=cl><span class=c1>//     return reinterpret_cast&lt;char(*)(int, float)&gt;(symbol-&gt;second)(arg1, arg2);
+</span></span></span><span class=line><span class=cl><span class=c1>//   }
+</span></span></span><span class=line><span class=cl><span class=c1>//   else
+</span></span></span><span class=line><span class=cl><span class=c1>//   {
+</span></span></span><span class=line><span class=cl><span class=c1>//     throw std::runtime_error(std::string(&#34;Function not found: &#34;) + name);
+</span></span></span><span class=line><span class=cl><span class=c1>//   }
+</span></span></span><span class=line><span class=cl><span class=c1>// }
+</span></span></span></code></pre></div><p>The compiler would interpret <code>Ret</code> as a <code>char</code>, <code>args...</code> would be expanded
+to 7 and 2.4f, and <code>Args...</code> would be expanded to an int and float type. This
+allows us to invoke <code>Execute</code> to first lookup the symbol, call it as a function
+with the appropriate arguments, and subsequently return the correct return
+value. Neat! We throw an exception if the function isn&rsquo;t found because it&rsquo;s hard
+to know what to return in this case.</p><p>The function <code>GetVar</code> is a little simpler. We simply look up the symbol and cast
+it as a pointer to specified template type before returning it.</p><p>Now, we&rsquo;re ready to specialize this class for our test library.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=c1>// Test.h
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=cp>#pragma once
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;RePlex.h&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=k>extern</span> <span class=s>&#34;C&#34;</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=kt>void</span> <span class=nf>foo</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>  <span class=k>extern</span> <span class=kt>int</span> <span class=n>bar</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=n>std</span><span class=o>::</span><span class=n>array</span><span class=o>&lt;</span><span class=k>const</span> <span class=kt>char</span><span class=o>*</span><span class=p>,</span> <span class=mi>2</span><span class=o>&gt;</span> <span class=n>g_exports</span> <span class=o>=</span> <span class=p>{</span> <span class=s>&#34;foo&#34;</span><span class=p>,</span> <span class=s>&#34;bar&#34;</span> <span class=p>};</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>class</span> <span class=nc>TestModule</span> <span class=o>:</span> <span class=k>public</span> <span class=n>RePlexModule</span><span class=o>&lt;</span><span class=n>TestModule</span><span class=p>,</span> <span class=n>g_exports</span><span class=p>.</span><span class=n>size</span><span class=p>()</span><span class=o>&gt;</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl><span class=k>public</span><span class=o>:</span>
+</span></span><span class=line><span class=cl>  <span class=k>static</span> <span class=kt>void</span> <span class=n>Foo</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=c1>// Execute might throw, but we don&#39;t bother catching the exception here for brevity
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=n>GetInstance</span><span class=p>().</span><span class=n>Execute</span><span class=o>&lt;</span><span class=kt>void</span><span class=o>&gt;</span><span class=p>(</span><span class=s>&#34;foo&#34;</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>static</span> <span class=kt>int</span> <span class=nf>GetBar</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=c1>// decltype is a relatively new operator. decltype(bar) resolves to int
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=c1>// Note that this function does not protect against retrieving nullptr
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=k>return</span> <span class=o>*</span><span class=n>GetInstance</span><span class=p>().</span><span class=n>GetVar</span><span class=o>&lt;</span><span class=k>decltype</span><span class=p>(</span><span class=n>bar</span><span class=p>)</span><span class=o>&gt;</span><span class=p>(</span><span class=s>&#34;bar&#34;</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>protected</span><span class=o>:</span>
+</span></span><span class=line><span class=cl>  <span class=k>virtual</span> <span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>GetPath</span><span class=p>()</span> <span class=k>const</span> <span class=k>override</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl><span class=cp>#ifdef DEBUG
+</span></span></span><span class=line><span class=cl><span class=cp></span>    <span class=k>return</span> <span class=s>&#34;bin/Debug/libRePlexTest.dylib&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=cp>#else
+</span></span></span><span class=line><span class=cl><span class=cp></span>    <span class=k>return</span> <span class=s>&#34;bin/Release/libRePlexTest.dylib&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=cp>#endif
+</span></span></span><span class=line><span class=cl><span class=cp></span>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>virtual</span> <span class=n>std</span><span class=o>::</span><span class=n>array</span><span class=o>&lt;</span><span class=k>const</span> <span class=kt>char</span><span class=o>*</span><span class=p>,</span> <span class=n>g_exports</span><span class=p>.</span><span class=n>size</span><span class=p>()</span><span class=o>&gt;&amp;</span> <span class=n>GetSymbols</span><span class=p>()</span> <span class=k>const</span> <span class=k>override</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>return</span> <span class=n>g_exports</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>};</span>
+</span></span></code></pre></div><p>In addition to the things we actually want to export from before (<code>foo</code> and
+<code>bar</code>), we make an array of exports of size 2 containing the correct string
+names. When we inherit from <code>RePlexModule</code>, we are careful to fully qualify all
+of its template arguments so the compiler can properly substitute all the
+template arguments where they are necessary. Thus, <code>GetInstance</code> will return a
+reference to a <code>TestModule</code> singleton, and <code>GetSymbolNames</code> will return an array of
+2 strings. We override the methods that were declared pure virtual, <code>GetPath</code>,
+and <code>GetSymbolNames</code> in a straightforward manner. Finally, we provide convenient
+static functions <code>Foo</code> and <code>GetBar</code> for calling <code>foo</code> and retrieving <code>bar</code>.
+Notice that the body of <code>Foo</code> contains</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=n>GetInstance</span><span class=p>().</span><span class=n>Execute</span><span class=o>&lt;</span><span class=kt>void</span><span class=o>&gt;</span><span class=p>(</span><span class=s>&#34;foo&#34;</span><span class=p>);</span>
+</span></span></code></pre></div><p>because <code>foo</code> returns void and takes no arguments. We&rsquo;re finally ready to modify
+our main program to take advantage of the new <code>TestModule</code> class.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=c1>// runtime/Main.cpp
+</span></span></span><span class=line><span class=cl><span class=c1></span>
+</span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;RePlex.h&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;Test.h&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;iostream&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=kt>int</span> <span class=nf>main</span><span class=p>()</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=n>TestModule</span><span class=o>::</span><span class=n>LoadLibrary</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>  <span class=n>TestModule</span><span class=o>::</span><span class=n>Foo</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>  <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;bar == &#34;</span> <span class=o>&lt;&lt;</span> <span class=n>TestModule</span><span class=o>::</span><span class=n>GetBar</span><span class=p>()</span> <span class=o>&lt;&lt;</span> <span class=n>std</span><span class=o>::</span><span class=n>endl</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;Make some changes, recompile, and press enter.&#34;</span> <span class=o>&lt;&lt;</span> <span class=n>std</span><span class=o>::</span><span class=n>flush</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>  <span class=k>while</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>cin</span><span class=p>.</span><span class=n>get</span><span class=p>()</span> <span class=o>!=</span> <span class=sc>&#39;\n&#39;</span><span class=p>)</span> <span class=p>{}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=n>TestModule</span><span class=o>::</span><span class=n>ReloadLibrary</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>  <span class=n>TestModule</span><span class=o>::</span><span class=n>Foo</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>  <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;bar == &#34;</span> <span class=o>&lt;&lt;</span> <span class=n>TestModule</span><span class=o>::</span><span class=n>GetBar</span><span class=p>()</span> <span class=o>&lt;&lt;</span> <span class=n>std</span><span class=o>::</span><span class=n>endl</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>  <span class=k>return</span> <span class=mi>0</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><p>Much better. Now the user of the test module doesn&rsquo;t need to think about the
+specifics regarding symbol names, reloading each symbol, or their types. We can
+just look at the public interface of <code>TestModule</code> to get it all down pat. If
+you&rsquo;re following along in code, remember to add the correct include paths to the
+test library and runtime projects in <code>premake5.lua</code> so the preprocessor includes
+work before compiling.</p><h1 id=some-refinements>Some refinements</h1><p>What we have now is probably usable as an internal library for the purpose of
+iterating on a C++ module that exposes a public interface of variables and
+functions. By coupling this with enums, interfaces, structs, and classes in a
+public header, we can pretty quickly imagine how we might integrate this small
+library into our workflow. There are a number of refinements possibly worth
+making to the library which I&rsquo;ll mention briefly in this section.</p><p>First, the library as is will only work on Linux and OSX platforms. The way
+symbols get mapped and unmapped in memory is operating system dependent, and
+Windows exposes its own set of functions for doing so: <code>LoadLibrary</code>,
+<code>GetProcAddress</code>, and <code>FreeLibrary</code>. They are analogous to <code>dlopen</code>, <code>dlsym</code>,
+and <code>dlclose</code> respectively, and I will leave it as an exercise to the reader to
+implement this. There are at least two ways to accomplish this. One way is to
+add a Premake <a href=https://github.com/premake/premake-core/wiki/filter>filter</a> on
+the platform name and create preprocessor definitions that can be used to ensure
+the correct function is called. Alternatively, you can split the interface to
+the operating system in files based on operating system and exclude files that
+were meant for different platforms in Premake.</p><p>A second problem is one of performance. If we are calling <code>Execute</code> or <code>GetVar</code>
+many times in an inner loop, we have to repeatedly hash the symbol name to do a
+lookup for the symbol address. To avoid this, we could cache the result of the
+lookup. Even easier though, is to avoid using the map in the first place and
+store the symbols in the same order as the symbol names. This might make it
+harder to change what symbols get loaded between loads, but it&rsquo;s unlikely that
+this would be a useful feature anyways.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl>  <span class=c1>// Before we stored a map
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=c1>// std::unordered_map&lt;std::string, void*&gt; m_symbols;
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=c1>//
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=c1>// Now we&#39;ll use a reference to the array that was passed in
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=k>using</span> <span class=n>SymbolArray</span> <span class=o>=</span> <span class=n>std</span><span class=o>::</span><span class=n>array</span><span class=o>&lt;</span><span class=n>std</span><span class=o>::</span><span class=n>pair</span><span class=o>&lt;</span><span class=k>const</span> <span class=kt>char</span><span class=o>*</span><span class=p>,</span> <span class=kt>void</span><span class=o>*&gt;&gt;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>  <span class=n>SymbolArray</span><span class=o>&amp;</span> <span class=n>m_symbols</span><span class=p>;</span>
+</span></span></code></pre></div><p>Also, we&rsquo;ll change our <code>LoadSymbols</code> function to populate this array:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl>  <span class=kt>void</span> <span class=nf>LoadSymbols</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>for</span> <span class=p>(</span><span class=k>auto</span><span class=o>&amp;&amp;</span> <span class=nl>symbol</span> <span class=p>:</span> <span class=n>m_symbols</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>    <span class=p>{</span>
+</span></span><span class=line><span class=cl>      <span class=n>symbol</span><span class=p>.</span><span class=n>second</span> <span class=o>=</span> <span class=n>dlsym</span><span class=p>(</span><span class=n>m_libHandle</span><span class=p>,</span> <span class=n>symbol</span><span class=p>.</span><span class=n>first</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span></code></pre></div><p>Note the <code>auto&&</code> here which shorthand for saying the variable <code>symbol</code> can bind
+to any type regardless of const-ness or
+<a href=http://en.cppreference.com/w/cpp/language/value_category>value category</a>. In
+this case, there is only one possibility of <code>auto&&</code> and the compiler will treat
+it as a <code>std::pair&lt;const char*, void*>&</code>.</p><p>Next, we modify our <code>Execute</code> and <code>GetVar</code> functions to take an index instead of
+a string name, in addition to adding a constructor which accepts a reference to
+the symbol array.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl>  <span class=n>RePlexModule</span><span class=p>(</span><span class=n>SymbolArray</span><span class=o>&amp;</span> <span class=n>symbols</span><span class=p>)</span> <span class=o>:</span> <span class=n>m_symbols</span><span class=p>(</span><span class=n>symbols</span><span class=p>)</span> <span class=p>{}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>template</span> <span class=o>&lt;</span><span class=k>typename</span> <span class=n>Ret</span><span class=p>,</span> <span class=k>typename</span><span class=p>...</span> <span class=n>Args</span><span class=o>&gt;</span>
+</span></span><span class=line><span class=cl>  <span class=n>Ret</span> <span class=n>Execute</span><span class=p>(</span><span class=k>const</span> <span class=kt>int</span> <span class=n>index</span><span class=p>,</span> <span class=n>Args</span><span class=p>...</span> <span class=n>args</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>auto</span> <span class=n>symbol</span> <span class=o>=</span> <span class=n>m_symbols</span><span class=p>.</span><span class=n>at</span><span class=p>(</span><span class=n>index</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=k>return</span> <span class=k>reinterpret_cast</span><span class=o>&lt;</span><span class=n>Ret</span><span class=p>(</span><span class=o>*</span><span class=p>)(</span><span class=n>Args</span><span class=p>...)</span><span class=o>&gt;</span><span class=p>(</span><span class=n>symbol</span><span class=p>.</span><span class=n>second</span><span class=p>)(</span><span class=n>args</span><span class=p>...);</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>template</span> <span class=o>&lt;</span><span class=k>typename</span> <span class=n>T</span><span class=o>&gt;</span>
+</span></span><span class=line><span class=cl>  <span class=n>T</span><span class=o>*</span> <span class=n>GetVar</span><span class=p>(</span><span class=k>const</span> <span class=kt>int</span> <span class=n>index</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>auto</span> <span class=n>symbol</span> <span class=o>=</span> <span class=n>m_symbols</span><span class=p>.</span><span class=n>at</span><span class=p>(</span><span class=n>index</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=k>return</span> <span class=k>static_cast</span><span class=o>&lt;</span><span class=n>T</span><span class=o>*&gt;</span><span class=p>(</span><span class=n>symbol</span><span class=p>.</span><span class=n>second</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span></code></pre></div><p>This is now quite a bit simpler than before because we leave it to the method
+<code>std::array::at</code> to do bounds checking for us. However, is it likely that this
+index will be dynamically determined at runtime? Not really. Instead, if we made
+the index a function template parameter, we can enforce that the correct address
+is retrieved without a bounds check. Doing this for the <code>GetVar</code> function for
+example:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl>  <span class=k>template</span> <span class=o>&lt;</span><span class=k>typename</span> <span class=n>T</span><span class=p>,</span> <span class=n>size_t</span> <span class=n>index</span><span class=o>&gt;</span>
+</span></span><span class=line><span class=cl>  <span class=n>T</span><span class=o>*</span> <span class=n>GetVar</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>static_assert</span><span class=p>(</span><span class=n>Index</span> <span class=o>&gt;=</span> <span class=mi>0</span> <span class=o>&amp;&amp;</span> <span class=n>Index</span> <span class=o>&lt;</span> <span class=n>NumSymbols</span><span class=p>,</span> <span class=s>&#34;Out of bounds symbol index&#34;</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=k>auto</span> <span class=n>symbol</span> <span class=o>=</span> <span class=n>m_symbols</span><span class=p>[</span><span class=n>index</span><span class=p>];</span>
+</span></span><span class=line><span class=cl>    <span class=k>return</span> <span class=k>static_cast</span><span class=o>&lt;</span><span class=n>T</span><span class=o>*&gt;</span><span class=p>(</span><span class=n>symbol</span><span class=p>.</span><span class=n>second</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span></code></pre></div><p>Doing <code>m_symbols[index]</code> doesn&rsquo;t do a bounds check like <code>m_symbols.at(index)</code>
+does, but we still get the bounds checking via the <code>static_assert</code> which means
+it&rsquo;s enforced at compile time instead of runtime. Great! There need to be a few
+changes to the <code>TestModule</code> to accommodate this new interface:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=n>std</span><span class=o>::</span><span class=n>array</span><span class=o>&lt;</span><span class=n>std</span><span class=o>::</span><span class=n>pair</span><span class=o>&lt;</span><span class=k>const</span> <span class=kt>char</span><span class=o>*</span><span class=p>,</span> <span class=kt>void</span><span class=o>*&gt;</span><span class=p>,</span> <span class=mi>2</span><span class=o>&gt;</span> <span class=n>g_exports</span> <span class=o>=</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=n>std</span><span class=o>::</span><span class=n>make_pair</span><span class=p>(</span><span class=s>&#34;foo&#34;</span><span class=p>,</span> <span class=k>nullptr</span><span class=p>),</span>
+</span></span><span class=line><span class=cl>  <span class=n>std</span><span class=o>::</span><span class=n>make_pair</span><span class=p>(</span><span class=s>&#34;bar&#34;</span><span class=p>,</span> <span class=k>nullptr</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>};</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>class</span> <span class=nc>TestModule</span> <span class=o>:</span> <span class=k>public</span> <span class=n>RePlexModule</span><span class=o>&lt;</span><span class=n>TestModule</span><span class=p>,</span> <span class=n>g_exports</span><span class=p>.</span><span class=n>size</span><span class=p>()</span><span class=o>&gt;</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl><span class=k>public</span><span class=o>:</span>
+</span></span><span class=line><span class=cl>  <span class=k>static</span> <span class=kt>void</span> <span class=n>Foo</span><span class=p>(</span><span class=kt>int</span> <span class=n>input</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=n>GetInstance</span><span class=p>().</span><span class=n>Execute</span><span class=o>&lt;</span><span class=mi>0</span><span class=p>,</span> <span class=kt>void</span><span class=o>&gt;</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=k>static</span> <span class=kt>int</span> <span class=nf>GetBar</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>return</span> <span class=o>*</span><span class=n>GetInstance</span><span class=p>().</span><span class=n>GetVar</span><span class=o>&lt;</span><span class=mi>1</span><span class=p>,</span> <span class=k>decltype</span><span class=p>(</span><span class=n>bar</span><span class=p>)</span><span class=o>&gt;</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=n>TestModule</span><span class=p>()</span> <span class=o>:</span> <span class=n>RePlexModule</span><span class=p>(</span><span class=n>g_exports</span><span class=p>)</span> <span class=p>{}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=c1>// Rest of class identical except GetSymbolNames was removed
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=p>};</span>
+</span></span></code></pre></div><p>Now, we can expect that <code>Foo</code> and <code>GetBar</code> will be very fast since they no
+longer require the string based map lookup. At most, they will need an offset
+from the array address, but it&rsquo;s likely that the optimizer will even elide that
+instruction.</p><p>This library is far from complete. It&rsquo;s not thread-safe. It doesn&rsquo;t protect you
+from reloading if you&rsquo;re in the middle of executing a function that might do a
+symbol lookup shortly after the previous library is unloaded. It requires the
+programmer to repeat himself or herself with regard to function return types and
+arguments when binding <code>Execute</code>. It doesn&rsquo;t handle errors well (library not
+found, symbol missing, etc). It&rsquo;s also missing a number of nice features,
+like automatic reload if the file changes. The goal of this article wasn&rsquo;t to
+provide a perfect implementation, but hopefully convey a since of how software
+like this might be written and structured.</p><p>One thing that&rsquo;s important to understand, is that the template programming we
+are doing here should not define one&rsquo;s programming style. In this case, we are
+using generics simply because we are defining a generic interface, which is
+where the template really shines. In particular, templates coupled with static
+assertions can go a long way in enforcing the type safety and correctness of an
+application. It&rsquo;s worth noting that all the templating is not
+exposed to the main runtime executable, who has the luxury of an easy-to-use
+interface. Indeed, abstracting away common generic behavior can be a good tool
+to reduce complexity and code duplication if done correctly.</p><h1 id=testing-and-publishing>Testing and publishing</h1><p>Making manual changes to the library and recompiling it, followed by a keystroke
+to see if things worked visually is a pretty terrible workflow as far as
+detecting regressions goes. In this section, we&rsquo;ll make things a little neater
+and repeatable. We&rsquo;ll also discuss the mechanics of publishing our code so
+others can use it.</p><p>For the purposes of this article, we will use
+<a href=https://github.com/google/googletest>googletest</a> which is a batteries-included
+test suite which contains the necessities (assertions, test framework) and other
+amenities like test report generation and an optional
+<a href=https://github.com/ospector/gtest-gbar>frontend</a>. To make our repository
+self-contained, let&rsquo;s add <code>googletest</code> as a git submodule, and also add a
+Premake project for it.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>git submodule add <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c5a2acb185a2acb1adb0a7eba6aaa8">[email&#160;protected]</a>:google/googletest.git
+</span></span></code></pre></div><div class=highlight><pre tabindex=0 class=chroma><code class=language-lua data-lang=lua><span class=line><span class=cl><span class=o>//</span> <span class=n>premake5.lua</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=o>#</span> <span class=p>...</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=n>project</span> <span class=s2>&#34;GoogleTest&#34;</span>
+</span></span><span class=line><span class=cl>    <span class=n>kind</span> <span class=s2>&#34;StaticLib&#34;</span>
+</span></span><span class=line><span class=cl>    <span class=n>files</span> <span class=p>{</span> <span class=s2>&#34;googletest/googletest/src/gtest-all.cc&#34;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=n>includedirs</span> <span class=p>{</span> <span class=s2>&#34;googletest/googletest/include&#34;</span><span class=p>,</span> <span class=s2>&#34;googletest/googletest&#34;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=n>project</span> <span class=s2>&#34;RePlexRuntime&#34;</span>
+</span></span><span class=line><span class=cl>    <span class=n>kind</span> <span class=s2>&#34;ConsoleApp&#34;</span>
+</span></span><span class=line><span class=cl>    <span class=n>files</span> <span class=p>{</span> <span class=s2>&#34;runtime/**.h&#34;</span><span class=p>,</span> <span class=s2>&#34;runtime/**.cpp&#34;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=n>includedirs</span> <span class=p>{</span> <span class=s2>&#34;lib/pub&#34;</span><span class=p>,</span> <span class=s2>&#34;test/pub&#34;</span><span class=p>,</span> <span class=s2>&#34;googletest/googletest/include&#34;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=n>links</span> <span class=p>{</span> <span class=s2>&#34;GoogleTest&#34;</span> <span class=p>}</span>
+</span></span></code></pre></div><p>Now, the Google test framework is bundled in the repository and invoking
+<code>premake5 gmake</code> will compile it and link it to <code>RePlexRuntime</code>. Now to actually
+author the tests themselves. Let&rsquo;s first do a simple test to see how this all
+works.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=c1>// runtime/Main.cpp
+</span></span></span><span class=line><span class=cl><span class=c1></span>
+</span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;gtest/gtest.h&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=n>TEST</span><span class=p>(</span><span class=n>SillyTest</span><span class=p>,</span> <span class=n>IsFourPositive</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=n>EXPECT_GT</span><span class=p>(</span><span class=mi>4</span><span class=p>,</span> <span class=mi>0</span><span class=p>);</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=n>TEST</span><span class=p>(</span><span class=n>SillyTest</span><span class=p>,</span> <span class=n>IsFourTimesFourSixteen</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=kt>int</span> <span class=n>x</span> <span class=o>=</span> <span class=mi>4</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>  <span class=n>EXPECT_EQ</span><span class=p>(</span><span class=n>x</span> <span class=o>*</span> <span class=n>x</span><span class=p>,</span> <span class=mi>16</span><span class=p>);</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kt>int</span> <span class=nf>main</span><span class=p>(</span><span class=kt>int</span> <span class=n>argc</span><span class=p>,</span> <span class=kt>char</span><span class=o>**</span> <span class=n>argv</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=c1>// This allows us to call this executable with various command line arguments
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=c1>// which get parsed in InitGoogleTest
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=o>::</span><span class=n>testing</span><span class=o>::</span><span class=n>InitGoogleTest</span><span class=p>(</span><span class=o>&amp;</span><span class=n>argc</span><span class=p>,</span> <span class=n>argv</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=k>return</span> <span class=n>RUN_ALL_TESTS</span><span class=p>();</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><p>Compiling and invoking <code>RePlexRuntime</code> generates the following output:</p><pre><code>./bin/Debug/RePlexRuntime
+[==========] Running 2 tests from 1 test case.
+[----------] Global test environment set-up.
+[----------] 2 tests from SillyTest
+[ RUN      ] SillyTest.IsFourPositive
+[       OK ] SillyTest.IsFourPositive (0 ms)
+[ RUN      ] SillyTest.IsFourTimesFourSixteen
+[       OK ] SillyTest.IsFourTimesFourSixteen (0 ms)
+[----------] 2 tests from SillyTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test case ran. (0 ms total)
+[  PASSED  ] 2 tests.
+</code></pre><p>Great! To learn the feature set of the Google test framework more completely, I
+recommend reading it&rsquo;s documentation, starting with the
+<a href=https://github.com/google/googletest/blob/master/googletest/docs/Primer.md>primer</a>.
+As an exercise, I recommend recompiling the above with a failing test to see
+what happens before continuing. What we need is to provide a way for the tests
+to emit code as text, recompile, and continue at runtime. To do this, we&rsquo;ll
+author a fixture class.</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=c1>// runtime/Main.cpp
+</span></span></span><span class=line><span class=cl><span class=c1></span>
+</span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;RePlex.h&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;Test.h&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;cstdlib&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;fstream&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp>#include</span> <span class=cpf>&lt;gtest/gtest.h&gt;</span><span class=cp>
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>g_Test_v1</span> <span class=o>=</span>
+</span></span><span class=line><span class=cl>  <span class=s>&#34;#include </span><span class=se>\&#34;</span><span class=s>pub/Test.h</span><span class=se>\&#34;\n</span><span class=s>&#34;</span>
+</span></span><span class=line><span class=cl>  <span class=s>&#34;int bar = 3;</span><span class=se>\n</span><span class=s>&#34;</span>
+</span></span><span class=line><span class=cl>  <span class=s>&#34;int foo(int x)</span><span class=se>\n</span><span class=s>&#34;</span>
+</span></span><span class=line><span class=cl>  <span class=s>&#34;{</span><span class=se>\n</span><span class=s>&#34;</span>
+</span></span><span class=line><span class=cl>  <span class=s>&#34;  return x + 5;</span><span class=se>\n</span><span class=s>&#34;</span>
+</span></span><span class=line><span class=cl>  <span class=s>&#34;}&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>g_Test_v2</span> <span class=o>=</span>
+</span></span><span class=line><span class=cl>  <span class=s>&#34;#include </span><span class=se>\&#34;</span><span class=s>pub/Test.h</span><span class=se>\&#34;\n</span><span class=s>&#34;</span>
+</span></span><span class=line><span class=cl>  <span class=s>&#34;int bar = -2;</span><span class=se>\n</span><span class=s>&#34;</span>
+</span></span><span class=line><span class=cl>  <span class=s>&#34;int foo(int x)</span><span class=se>\n</span><span class=s>&#34;</span>
+</span></span><span class=line><span class=cl>  <span class=s>&#34;{</span><span class=se>\n</span><span class=s>&#34;</span>
+</span></span><span class=line><span class=cl>  <span class=s>&#34;  return x - 5;</span><span class=se>\n</span><span class=s>&#34;</span>
+</span></span><span class=line><span class=cl>  <span class=s>&#34;}&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>class</span> <span class=nc>RePlexTest</span> <span class=o>:</span> <span class=k>public</span> <span class=o>::</span><span class=n>testing</span><span class=o>::</span><span class=n>Test</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl><span class=k>public</span><span class=o>:</span>
+</span></span><span class=line><span class=cl>  <span class=c1>// Called automatically at the start of each test case.
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=k>virtual</span> <span class=kt>void</span> <span class=n>SetUp</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=n>WriteFile</span><span class=p>(</span><span class=s>&#34;test/Test.cpp&#34;</span><span class=p>,</span> <span class=n>g_Test_v1</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>Compile</span><span class=p>(</span><span class=mi>1</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>TestModule</span><span class=o>::</span><span class=n>LoadLibrary</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=c1>// We&#39;ll invoke this function manually in the middle of each test case
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=kt>void</span> <span class=nf>ChangeAndReload</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=n>WriteFile</span><span class=p>(</span><span class=s>&#34;test/Test.cpp&#34;</span><span class=p>,</span> <span class=n>g_Test_v2</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>Compile</span><span class=p>(</span><span class=mi>2</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>TestModule</span><span class=o>::</span><span class=n>ReloadLibrary</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=c1>// Called automatically at the end of each test case.
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=k>virtual</span> <span class=kt>void</span> <span class=nf>TearDown</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=n>TestModule</span><span class=o>::</span><span class=n>UnloadLibrary</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>    <span class=n>WriteFile</span><span class=p>(</span><span class=s>&#34;test/Test.cpp&#34;</span><span class=p>,</span> <span class=n>g_Test_v1</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>Compile</span><span class=p>(</span><span class=mi>1</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>private</span><span class=o>:</span>
+</span></span><span class=line><span class=cl>  <span class=kt>void</span> <span class=n>WriteFile</span><span class=p>(</span><span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>path</span><span class=p>,</span> <span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>text</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=c1>// Open an output filetream, deleting existing contents
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=n>std</span><span class=o>::</span><span class=n>ofstream</span> <span class=n>out</span><span class=p>(</span><span class=n>path</span><span class=p>,</span> <span class=n>std</span><span class=o>::</span><span class=n>ios_base</span><span class=o>::</span><span class=n>trunc</span> <span class=o>|</span> <span class=n>std</span><span class=o>::</span><span class=n>ios_base</span><span class=o>::</span><span class=n>out</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>out</span> <span class=o>&lt;&lt;</span> <span class=n>text</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=kt>void</span> <span class=nf>Compile</span><span class=p>(</span><span class=kt>int</span> <span class=n>version</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>if</span> <span class=p>(</span><span class=n>version</span> <span class=o>==</span> <span class=n>m_version</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>    <span class=p>{</span>
+</span></span><span class=line><span class=cl>      <span class=k>return</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=n>m_version</span> <span class=o>=</span> <span class=n>version</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>    <span class=n>EXPECT_EQ</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>system</span><span class=p>(</span><span class=s>&#34;make&#34;</span><span class=p>),</span> <span class=mi>0</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=c1>// Super unfortunate sleep due to the result of make not being fully flushed
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=c1>// by the time the command returns (there are more elegant ways to solve this)
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=n>sleep</span><span class=p>(</span><span class=mi>1</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=kt>int</span> <span class=n>m_version</span> <span class=o>=</span> <span class=mi>1</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=p>};</span>
+</span></span></code></pre></div><p>The fixture class should be fairly self explanatory. There are three primary
+methods for setup, teardown, and reloading the library. We keep track of the
+currently loaded library in a member variable <code>m_version</code> so we avoid
+recompiling the library if the one we want is already loaded (note that
+<code>m_version</code> defaults to 1 at the beginning). We also have two versions of
+<code>Test.cpp</code> that we will write out and compile at runtime. You&rsquo;ll have to change
+the function signatures of <code>Foo</code> in <code>Test.h</code> so things compile properly. To use
+the fixture, we use the <code>TEST_F</code> macro instead of the <code>TEST</code> macro like so:</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=line><span class=cl><span class=n>TEST_F</span><span class=p>(</span><span class=n>RePlexTest</span><span class=p>,</span> <span class=n>VariableReload</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=n>EXPECT_EQ</span><span class=p>(</span><span class=n>TestModule</span><span class=o>::</span><span class=n>GetBar</span><span class=p>(),</span> <span class=mi>3</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=n>ChangeAndReload</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>  <span class=n>EXPECT_EQ</span><span class=p>(</span><span class=n>TestModule</span><span class=o>::</span><span class=n>GetBar</span><span class=p>(),</span> <span class=o>-</span><span class=mi>2</span><span class=p>);</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=n>TEST_F</span><span class=p>(</span><span class=n>RePlexTest</span><span class=p>,</span> <span class=n>FunctionReload</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=n>EXPECT_EQ</span><span class=p>(</span><span class=n>TestModule</span><span class=o>::</span><span class=n>Foo</span><span class=p>(</span><span class=mi>4</span><span class=p>),</span> <span class=mi>9</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=n>ChangeAndReload</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>  <span class=n>EXPECT_EQ</span><span class=p>(</span><span class=n>TestModule</span><span class=o>::</span><span class=n>Foo</span><span class=p>(</span><span class=mi>4</span><span class=p>),</span> <span class=o>-</span><span class=mi>1</span><span class=p>);</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kt>int</span> <span class=nf>main</span><span class=p>(</span><span class=kt>int</span> <span class=n>argc</span><span class=p>,</span> <span class=kt>char</span><span class=o>**</span> <span class=n>argv</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=o>::</span><span class=n>testing</span><span class=o>::</span><span class=n>InitGoogleTest</span><span class=p>(</span><span class=o>&amp;</span><span class=n>argc</span><span class=p>,</span> <span class=n>argv</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=k>return</span> <span class=n>RUN_ALL_TESTS</span><span class=p>();</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><p>Running this will generate a fair bit of output due to the runtime compilation
+but we should have all our tests passing. A <em>bad</em> thing we did in order to make
+this work was the sleep in our <code>Compile</code> function. Even though the <code>system</code> call
+is synchronous, there is a race condition when reading the file from the disk
+which is being flushed by the <code>make</code> command. The sleep here is unfortunate
+because it makes the tests slower, and also makes the test non-deterministic.
+The proper way to implement these tests is to install a handler for a file
+change notification. The implementation of this will vary based on the platform,
+and is left as an exercise to the reader.</p><p>At this point, we might decide that the library is good enough for others to
+use. The only file a 3rd-party user would need to leverage our library is
+<code>RePlex.h</code> (in other words, this is a &ldquo;header-only&rdquo; library). Thus, distribution
+is just a matter of copying <code>RePlex.h</code> into the include path of the target
+project. If we had needed to export compiled code in the form of a static or
+shared library, we have two options. First, we may opt to compile the library
+for all the various combinations of OS and architecture (x86/x64/etc) we might
+support. This library would then be distributable as a binary file.
+Alternatively, we can simply publish the code with the Premake script we
+authored and let the end user compile the code themselves and link the result to
+their own library or executable. These are the two primary options at the
+moment, and sadly, no unified &ldquo;package manager&rdquo; has been authored in the C++
+community (although the author of this article is very interested in efforts to
+do so).</p><h1 id=notes-on-writing-code>Notes on writing code</h1><p>Without getting into editor/IDE battles, I am posting below a survey of the
+various tools I use. If your favorite tool isn&rsquo;t listed, it is either because I
+haven&rsquo;t tried it, or have reason to use an alternative. This isn&rsquo;t meant to be exhaustive or
+definitive. Rather it should be used as a starting point for someone just
+starting to experiment with the language.</p><ul><li>Microsoft Visual Studio 2015: The IDE has come quite a long way, and is by and
+large among the most fully featured IDEs in existence. The debugger, watch
+windows, conditional breakpoints, immediate window, peek windows, graphics
+debugger, and performance analyzers are tools I leverage frequently.</li><li>Xcode: For developing on OSX. It has a similar feature-set as VS and compiles
+using the Clang compiler instead (possibly better error messages, stricter
+warnings).</li><li>Eclipse: Open source IDE for use on Linux that I&rsquo;ve used (disclaimer: on Linux
+I tend to fall back to text editors and command line debuggers)</li><li><a href=https://github.com/danmar/cppcheck>cppcheck</a>: A static analysis tool which
+can help you catch bugs</li><li><a href=https://github.com/syl20bnr/spacemacs>Spacemacs</a>: An Emacs distribution with
+batteries included that uses Vim modal
+editing as its default mode (this is going to make me popular /s).</li><li><a href=https://github.com/unittest-cpp/unittest-cpp>unittest-cpp</a>: A nice
+lightweight framework for authoring unit tests if you don&rsquo;t need something as heavy duty as gtest.</li><li><a href=https://github.com/google/googletest>googletest</a>: The Google Test framework used in this article.</li><li><a href=https://premake.github.io/download.html>Premake</a>: Build configuration tool
+leveraged throughout this article (alternatives to consider include
+<a href=http://bazel.io/>bazel</a>, <a href=https://cmake.org/>CMake</a>,
+<a href=http://www.fastbuild.org/docs/home.html>FastBuild</a>, or
+<a href=http://www.scons.org/>Scons</a>). Meta-make systems like Premake and CMake have
+supplanted simple Makefiles for more complex projects, and I personally favor
+Premake due to its simplicity and modularized architecture (it also helps that
+it isn&rsquo;t built on top of a strange DSL).</li><li>lldb/gdb: Command line debuggers for quick-and-dirty debugging if the code was
+compiled with Clang or GCC respectively</li><li><a href=http://clang.llvm.org/docs/ClangTools.html>Clang tools</a>: A suite of tools
+that should be part of any robust build pipeline including formatters,
+linters, static analysis, and more.</li><li><a href=http://en.cppreference.com/w/>cppreference</a>: Invaluable online reference for
+the C and C++ language and standard library</li></ul><p>There is also an entire gamut of profilers, heap analyzers, leak detectors, and
+more which vary based on operating system and task, which I will leave for
+perhaps another time. My recommendation regarding tools is, pick an IDE and
+learn it very well (seriously!). Your skills will likely translate to other IDEs. It is a
+little difficult to recommend using only an editor (unless you have access to a
+plethora of editor scripts and features) when programming in C++, primarily
+because on-the-fly static analysis can save a lot of time by detecting compile
+errors early (e.g. missing symbols, type mismatches, const-correctness
+violations, etc). In addition, debugging runtime problems like thread
+deadlocking, memory stomping, and the like are a bit tricky without a robust
+debugger. Other languages might do away with these types of problems, but they
+won&rsquo;t offer as much control either, so it&rsquo;s a two-way street.</p><h1 id=the-wrap-up>The wrap up</h1><p>At this point, we have a project that, while not necessarily in its final form,
+sufficiently accomplishes what we set out to do. We also made three
+inter-dependent modules, with one providing a shared interface to the other two,
+and configured it so that the code could be compiled on any platform (with some
+tweaking). We optimized and streamlined the code a little bit using some new
+language facilities to make the code faster and less error-prone. Finally, we
+also used some functionality provided directly by the operating system, and
+potentially learned something about code gets compiled, loaded, and executed. If
+you would like to compile the code and run it yourself or make modifications,
+please visit the project <a href=https://github.com/PlexChat/RePlex>github page</a>.
+This was intended to be an educational project, but improvements are welcome!</p><p>If you are a newcomer to the language, you will find that C++, being a fully
+multiparadigm language, can be unfriendly at first but is ultimately
+unopinionated with regards to how you wish to interact with the hardware. With
+the advent of C++11 and C++14 (both of which are supported by all major
+compilers), there are now better and easier-to-use abstractions than ever
+before. Old-timers of the language, stand to improve the style and
+understandability of their code without sacrificing power. New users will find
+the language much more accessible compared to previous attempts to learn the
+language. I recommend the <strong>C++ Primer</strong> (Lippman, Lajoie, Moo), <strong>Effective Modern
+C++</strong> (Meyers), and <strong>Programming: Principles and Practice Using C++</strong>
+(Stroustroup), all in their latest incarnations for studying the language.</p><div class=catalogue-item><div class="media author-box"><div class=media-figure><a href=/posts/cpp/1/><img class=img-responsive src=/posts/cpp/1//images/headshot.png alt></a></div><div class=media-body><time datetime="2015-10-08 00:00:00 +0000 UTC" class=catalogue-time>October 8, 2015</time><h1 class=catalogue-title><a href=/posts/cpp/1/>C++</a></h1><div class=catalogue-line></div><p>Jeremy is a full stack engineer, currently working on a <a href=http://plexchat.com>company</a> specializing in cross-platform real-time coordination and communication. He is a programming language and paradigm polyglot, with professional experience ranging from distributed systems and network protocols, to game engines and renderers for next-gen game consoles.</p></div></div></div></div><div class=pagination><a href=/posts/erlang/1/ class="left arrow">&#8592;</a>
+<a href=/posts/elixir/1/ class="right arrow">&#8594;</a>
+<a href=# class=top>Top</a></div></main><footer><small>Except where otherwise noted.</small>
+<a href=http://creativecommons.org/licenses/by-nc-nd/3.0/ title="Creative Commons License Details"><img src=/images/cc.png alt="Creative Commons Attribution Non-Commercial No Derivative License"></a></footer><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script></body></html>
