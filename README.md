@@ -1,7 +1,7 @@
 # Notes about Lua
 
 ## Ví dụ về 1 project Lua
-```
+```Tree
 my-lua-project/
 ├── README.md
 ├── .gitignore
@@ -17,7 +17,7 @@ my-lua-project/
 ```
 
 ## Truyền module
-```
+```Notes
 - local math_utils = require("math_utils")
 (Lua tìm thông qua package.path)
 
@@ -25,29 +25,39 @@ my-lua-project/
 ```
 
 ## Keywords in Lua
+
 |and        |break  |do     |else   |
 |-----------|-------|-------|-------|
 |elseif     |end    |false  |for    |
 |function   |if     |in     |local  |
 |nil        |not    |or     |repeat |
 |return     |then   |true   |until  |
-|while|
+|while      |       |       |       |
+
+
+### Test table
+
+|A|B|
+|-|-|
+|C|D|
 
 ## Datatypes in Lua
+
 |Sr.No|Value Types & Description|
-|-|----------|
-|1|**nil**<br>Used to differentiate the value from having some data or no(nil) data.|
-|2|**boolean**<br>Includes true and false as values. Generally used for condition checking.|
-|3|**number**<br>Represents real(double precision floating point) numbers.|
-|4|**string**<br>Represents array of characters.|
-|5|**function**<br>Represents a method that is written in C or Lua.|
-|6|**userdata**<br>Represents arbitrary C data.|
-|7|**thread**<br>Represents independent threads of execution and it is used to implement coroutines.|
-|8|**table**<br>Represent ordinary arrays, symbol tables, sets, records, graphs, trees, etc., and implements associative arrays. It can hold any value (except nil).|
+|-----|-------------------------|
+|1|**nil**: Used to differentiate the value from having some data or no(nil) data.|
+|2|**boolean**: Includes true and false as values. Generally used for condition checking.|
+|3|**number**: Represents real(double precision floating point) numbers.|
+|4|**string**: Represents array of characters.|
+|5|**function**: Represents a method that is written in C or Lua.|
+|6|**userdata**: Represents arbitrary C data.|
+|7|**thread**: Represents independent threads of execution and it is used to implement coroutines.|
+|8|**table**: Represent ordinary arrays, symbol tables, sets, records, graphs, trees, etc., and implements associative arrays. It can hold any value (except nil).|
 
 ## Format Codes for Dates in Lua
-| Character | Description | Example |
-| --- | --- | --- |
+
+| Character | Description   | Example   |
+| ---       | ---           | ---       |
 | **a** | Abbreviated weekday name | Wed |
 | **A** | Full weekday name | Wednesday |
 | **b** | abbreviated month name | Sep |
