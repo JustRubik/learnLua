@@ -3,12 +3,8 @@
 --
 -- print(leetcode.hallo())
 
-
-file = io.open("test.txt", "a+")
--- io.stdin(file)
-io.output(file)
-for _=1,10 do 
-  io.write("Hello Hiếu Rubik")
+local result = 0
+for i=5,13 do
+  result = result + math.sqrt(i)
 end
-io.close(file)
-
+print(result)
