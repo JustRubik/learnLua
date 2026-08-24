@@ -34,13 +34,6 @@ my-lua-project/
 |return     |then   |true   |until  |
 |while      |       |       |       |
 
-
-### Test table
-
-|A|B|
-|-|-|
-|C|D|
-
 ## Datatypes in Lua
 
 |Sr.No|Value Types & Description|
