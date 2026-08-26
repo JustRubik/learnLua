@@ -25,15 +25,17 @@ my-lua-project/
 ```
 
 ## Keywords in Lua
+
 |and        |break  |do     |else   |
 |-----------|-------|-------|-------|
 |elseif     |end    |false  |for    |
 |function   |if     |in     |local  |
 |nil        |not    |or     |repeat |
 |return     |then   |true   |until  |
-|while|
+|while      |       |       |       |
 
 ## Datatypes in Lua
+
 |Sr.No|Value Types & Description|
 |-|----------|
 |1|**nil**<br>Used to differentiate the value from having some data or no(nil) data.|
@@ -46,6 +48,7 @@ my-lua-project/
 |8|**table**<br>Represent ordinary arrays, symbol tables, sets, records, graphs, trees, etc., and implements associative arrays. It can hold any value (except nil).|
 
 ## Format Codes for Dates in Lua
+
 | Character | Description | Example |
 | --- | --- | --- |
 | **a** | Abbreviated weekday name | Wed |
@@ -66,3 +69,4 @@ my-lua-project/
 | **Y** | full year | 1998 |
 | **y** | two-digit year | (98) \[00-99\] |
 | **%** | the character \`%´ | % |
+
