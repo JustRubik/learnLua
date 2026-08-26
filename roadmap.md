@@ -38,27 +38,27 @@ Không cần học toàn bộ Lua trước khi đụng LÖVE. Học đến đâu
 - [x] Variables
 - [x] `local`
 - [x] Numbers
-- [ ] Strings
-- [ ] Booleans
-- [ ] `nil`
-- [ ] Operators
+- [x] Strings
+- [x] Booleans
+- [x] `nil`
+- [x] Operators
 - [x] `if / elseif / else`
 - [x] `while`
-- [ ] `repeat ... until`
-- [ ] Numeric `for`
-- [ ] Generic `for`
+- [x] `repeat ... until`
+- [x] Numeric `for`
+- [x] Generic `for`
 
 ## 1.2. Tables
 
-- [ ] Array-like tables
-- [ ] Dictionary-like tables
-- [ ] Keys/values
-- [ ] `pairs`
-- [ ] `ipairs`
-- [ ] `#table`
-- [ ] Nested tables
-- [ ] `nil` và table holes
-- [ ] Table references
+- [x] Array-like tables
+- [x] Dictionary-like tables
+- [x] Keys/values
+- [x] `pairs`
+- [x] `ipairs`
+- [x] `#table`
+- [x] Nested tables
+- [x] `nil` và table holes
+- [x] Table references
 
 ## 1.3. Functions
 
