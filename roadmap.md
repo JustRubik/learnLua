@@ -35,15 +35,15 @@ Không cần học toàn bộ Lua trước khi đụng LÖVE. Học đến đâu
 
 ## 1.1. Syntax cơ bản
 
-- [ ] Variables
-- [ ] `local`
-- [ ] Numbers
+- [x] Variables
+- [x] `local`
+- [x] Numbers
 - [ ] Strings
 - [ ] Booleans
 - [ ] `nil`
 - [ ] Operators
-- [ ] `if / elseif / else`
-- [ ] `while`
+- [x] `if / elseif / else`
+- [x] `while`
 - [ ] `repeat ... until`
 - [ ] Numeric `for`
 - [ ] Generic `for`

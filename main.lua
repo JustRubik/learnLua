@@ -1,5 +1,5 @@
 package.path = "./src/?.lua;" .. package.path
-local leetcode = require("leetcode#1")
+-- This is how to import modules to main.lua
+-- local module = require("module.lua")
 
-print("Leetcode#1: ")
-leetcode.test()
+
