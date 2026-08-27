@@ -169,4 +169,79 @@ Nested tables remain shared.
 Deep copy:
     recursively copies nested tables.
 
+## Closure
 
+A closure is a function together with the variables
+from its surrounding scope that it captures.
+
+A function can keep accessing captured variables even
+after the outer function/scope has finished.
+
+Example:
+
+    local function counter()
+        local count = 0
+
+        return function()
+            count = count + 1
+            return count
+        end
+    end
+
+    local c = counter()
+
+    print(c()) -- 1
+    print(c()) -- 2
+    print(c()) -- 3
+
+`count` is captured by the returned function.
+
+Each call to `counter()` creates an independent closure:
+
+    local a = counter()
+    local b = counter()
+
+    a() --> 1
+    a() --> 2
+
+    b() --> 1
+    b() --> 2
+
+Closures are useful for:
+
+    - private state
+    - callbacks
+    - event handlers
+    - iterators
+    - state machines
+    - maintaining state between function calls
+
+A closure captures the variable itself, not simply a copy
+of its current value.
+
+## Modules
+
+### Require
+`Require` sẽ gán module vào cái biến mà gọi module ấy.
+
+### Dofile và Loadfile
+- Truyền vào 1 đường dẫn file: `local a = dofile(a.lua)` dùng để chạy file đấy như 1 hàm duy nhất, ngay lập tức; `local b = loadfile(b.lua) dùng để lưu b như 1 hàm (lúc này chưa chạy ngay), và dùng như 1 hàm ngoài.
+- Ngoài ra, dofile và loadfile không lưu cache file truyền vào, không giống như module load bằng `require()`.
+- Nói chung, `dofile` và `loadfile` nhìn 1 file `.lua` như 1 **hàm**, trong khi đó `module` nhìn 1 file `.lua` như 1 **module**.
+
+### package.path
+
+1 ví dụ đơn giản:
+Giả sử ta có cấu trúc thư mục như sau:
+
+```Tree
+├── main.lua
+└── src
+    └── modules
+        └── math.lua
+```
+
+thì import module kiểu:
+```Lua
+package.path = "./src/modules/?.lua;" .. package.path
+```

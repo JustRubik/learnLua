@@ -62,21 +62,21 @@ Không cần học toàn bộ Lua trước khi đụng LÖVE. Học đến đâu
 
 ## 1.3. Functions
 
-- [ ] Function declaration
-- [ ] Anonymous functions
-- [ ] Multiple return values
-- [ ] Variadic functions
-- [ ] Functions as values
-- [ ] Higher-order functions
-- [ ] Closures
+- [x] Function declaration
+- [x] Anonymous functions
+- [x] Multiple return values
+- [x] Variadic functions
+- [x] Functions as values
+- [x] Higher-order functions
+- [x] Closures
 
 ## 1.4. Modules
 
-- [ ] `require`
-- [ ] `package.path`
-- [ ] Module pattern
-- [ ] Tách code thành nhiều file
-- [ ] Quản lý project structure
+- [x] `require`
+- [x] `package.path`
+- [x] Module pattern
+- [x] Tách code thành nhiều file
+- [x] Quản lý project structure
 
 ## 1.5. Lua nâng cao
 
