@@ -13,5 +13,5 @@ print("Value of vector: ")
 local dataT = v.data()
 
 for key=1, v.len do
-  print(key, dataT)
+  print(key, dataT[key])
 end
