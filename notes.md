@@ -1,4 +1,4 @@
-# All notes of learning Lua
+# All notes of learning Fundamental Lua
 
 ## Booleans
 
@@ -245,3 +245,30 @@ thì import module kiểu:
 ```Lua
 package.path = "./src/modules/?.lua;" .. package.path
 ```
+
+# All notes of advanced Lua
+
+## Meta: metatables and metamethod
+
+### Các key đặc biệt
+Bắt đầu với `__` 
+```
+__add           -- tổng
+__sub           -- hiệu
+__mul           -- tích
+__div           -- chia
+__mod           -- modulo
+__pow           -- power: lũy thừa
+__eq            -- equal: so sánh bằng
+__lt            -- less than (<)
+__le            -- less than or equal (<=)
+--unm           -- số âm
+--idiv          -- floor division (//)
+__index         -- trigger when looking up a missing key or absent table index
+__newindex      -- trigger when assigning a value to a missing key.
+__len           -- len operator
+__concat        -- concat
+__tostring      -- formatting
+__call          -- destructer called when a userdata or table is collected
+```
+để trỏ tới metamethod

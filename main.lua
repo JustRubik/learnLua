@@ -1,17 +1,17 @@
-package.path = "./src/?.lua;" .. package.path
--- This is how to import modules to main.lua
--- local module = require("module.lua")
+package.path = "./src/modules/?.lua;" .. package.path
+-- This is how to import modules from module.lua to main.lua
+-- local module = require("module")
 
-local str = "Hiếu Rubik là Hiếu"
-local target = "hieu"
-local target2 = "hiếu"
+-- Project chuyển hướng sang việc tạo 1 class hoàn chỉnh, giống vector trong c++
 
-local normalized = target:lower()
+local vector = require("vector")
 
-print(target:len())     -- 4
-print(#target)          -- 4
-print(utf8.len(target)) -- 4
-print(target2:len())    -- 6
-print(#target2)         -- 6
-print(utf8.len(target2))-- 4
-print(str:find(normalized))
+local v = vector.new(10, 12)
+
+print("Value of vector: ")
+
+local dataT = v.data()
+
+for key=1, v.len do
+  print(key, dataT)
+end
