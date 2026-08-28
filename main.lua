@@ -4,14 +4,11 @@ package.path = "./src/modules/?.lua;" .. package.path
 
 -- Project chuyển hướng sang việc tạo 1 class hoàn chỉnh, giống vector trong c++
 
-local vector = require("vector")
+-- Project chuyển hướng sang việc tạo 1 class linkedlist (double linkedList)
 
-local v = vector.new(10, 12)
 
-print("Value of vector: ")
+local List = require("lists")
 
-local dataT = v.data()
 
-for key=1, v.len do
-  print(key, dataT[key])
-end
+
+print(List)
