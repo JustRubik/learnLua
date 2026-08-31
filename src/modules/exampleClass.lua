@@ -1,3 +1,9 @@
+-- :new() sẽ tự tạo 1 argument self 
+-- .new() sẽ không có 
+-- để tường minh, hay sử dụng self trong function
+-- thì nên dùng :new()
+
+
 local Rectangle = {}
 
 function Rectangle:new( length, width )

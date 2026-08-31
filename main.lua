@@ -9,6 +9,9 @@ package.path = "./src/modules/?.lua;" .. package.path
 -- First, cần phải học cách tạo 1 class, 1 object trong lua
 
 -- local List = require("lists")
+--
+--
+-- 
 
 local Exg = require("exampleClass")
 
