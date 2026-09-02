@@ -8,19 +8,27 @@ package.path = "./src/modules/?.lua;" .. package.path
 
 -- First, cần phải học cách tạo 1 class, 1 object trong lua
 
--- local List = require("lists")
---
---
--- 
+local List = require("lists")
 
-local Exg = require("exampleClass")
+local mon = { "Monday" }
+local tue = { "Tuesday" }
+local wed = { "Wednesday" }
+local fri = { "Friday" }
 
-local a = Exg:new(12, 10)
+local o = List(mon, tue)
 
-print(a:getLength())
-print(a:getWidth())
+local function printList(t)
+	for v in t:iterate() do
+		print(v[1])
+	end
+end
 
-a:printArea()
+printList(o)
+print("\n")
 
-print(a.length)
-print(a._length)
+o:pushback(wed)
+o:pushback({ "Thursday" })
+o:pushback(fri)
+
+printList(o)
+print(o.length)
